@@ -42,11 +42,16 @@ Budget 5–10 minutes; NeMo is a large install.
 
 ## Get the model
 
-| checkpoint | where | notes |
-|---|---|---|
-| **v3** | [`kristijonas/kmynas-parakeet-lt-v3`](https://huggingface.co/kristijonas/kmynas-parakeet-lt-v3) | current; public. fp16 is safe — the recording that killed v2 in fp16 decodes clean here |
-| v2 | [`kristijonas/kmynas-parakeet-lt-v2`](https://huggingface.co/kristijonas/kmynas-parakeet-lt-v2) | public; **crashes in fp16**, run it with `--dtype fp32` |
-| v3 mid-run | [`…-v3-checkpoints`](https://huggingface.co/kristijonas/kmynas-parakeet-lt-v3-checkpoints) | steps 5,000 / 12,552 / 15,104, for checkpoint comparisons |
+```bash
+huggingface-cli download kristijonas/kmynas-parakeet-lt-v3 kmynas-parakeet-lt-v3.nemo \
+    --local-dir .
+```
+
+| checkpoint | notes |
+|---|---|
+| [**v3**](https://huggingface.co/kristijonas/kmynas-parakeet-lt-v3) | current |
+| [v2](https://huggingface.co/kristijonas/kmynas-parakeet-lt-v2) | **crashes in fp16** — run it with `--dtype fp32` |
+| [v3 mid-run](https://huggingface.co/kristijonas/kmynas-parakeet-lt-v3-checkpoints) | steps 5,000 / 12,552 / 15,104, for checkpoint comparisons |
 
 Point the pipeline at any `.nemo` Parakeet checkpoint with `--model`, or set
 `$KMYNAS_MODEL` once:
@@ -55,8 +60,7 @@ Point the pipeline at any `.nemo` Parakeet checkpoint with `--model`, or set
 export KMYNAS_MODEL=/path/to/kmynas-parakeet-lt-v3.nemo
 ```
 
-Nothing downloads itself: pass a local file, or fetch one first with
-`huggingface-cli download`.
+Nothing downloads itself — pass a local file.
 
 ## Transcribe
 
@@ -74,10 +78,9 @@ it has returned 35 speakers on a two-person phone call. If you do not know the
 count, run `--no-diar` first (it is fast), read enough to count the voices, then
 do one real run.
 
-**On Apple Silicon, add `--dtype fp32`.** fp16 is verified clean on CUDA, but on
-MPS it can emit token ids outside the vocabulary and crash detokenization. That
-is a backend problem, not a model one, and it costs you memory rather than
-accuracy.
+**Leave `--dtype` alone.** The default fp16 halves device memory and decodes
+about 15% faster, and it is a wash on accuracy — see below. v2 checkpoints are
+the exception: they crash in fp16 and need `--dtype fp32`.
 
 ## Flags
 
@@ -89,7 +92,7 @@ accuracy.
 | `--no-vad` | off | fall back to the older fixed-target chunker |
 | `--min-confidence` | `0.98` | hallucination filter threshold; `0` disables |
 | `--lexicon FILE` | none | loanword spelling table — see below |
-| `--dtype` | `fp16` | use `fp32` on Apple Silicon |
+| `--dtype` | `fp16` | half the memory, ~15% faster, a wash on accuracy; v2 needs `fp32` |
 | `--diar-min-off` | `0.5` | seconds a voice must go quiet before a speaker change is believed |
 | `--overlap` | `1.3` | block overlap in seconds (ignored in VAD mode) |
 | `--block-secs` | `35` | max block length in non-VAD mode |
@@ -235,6 +238,36 @@ Boosting was measured and did not help.
 **Numbers are always words**, never digits (`du tūkstančiai`), following the
 LIEPA convention the model was trained on.
 
+## Precision: fp16 against fp32
+
+Measured on 39 minutes of Lithuanian conference, podcast and telephone speech,
+5,826 words of transcript, on Apple MPS.
+
+**Accuracy is a wash.** 32 spans differ, 0.55% of positions — and 9 of those are
+punctuation or capitalisation only, leaving **0.39% actual word changes**. Read
+end to end, neither side is consistently better: fp32 recovers two Lithuanian
+discourse markers that fp16 turns into junk (`Tai daryk` → `Hidaryk`), and fp16
+recovers three English borrowings that fp32 mangles (`forvyų` → `forum. Review`,
+`staidžis` → `staiges`). One 100-second recording came out byte-identical.
+
+**fp16 costs about half the device memory** and decodes roughly 15% faster
+(RTF 0.026 against 0.030 on a 34-minute file). Peak device allocation:
+
+| recording | fp32 | fp16 |
+|---|---|---|
+| 7 min | 4.06 GiB | **2.22 GiB** |
+| 34 min | 6.16 GiB | **3.34 GiB** |
+
+**It does not crash.** v2 died in fp16 deterministically — an id from the
+blank/duration slots leaking into a hypothesis and killing detokenization. v3
+decoded the exact recording that killed v2 clean, all 34 minutes and 3,698
+words. The pipeline installs a guard anyway when a half dtype is used, so an
+out-of-vocabulary id is dropped rather than raised; an id the vocabulary cannot
+express carries no text to lose.
+
+So: leave the default alone. Use `--dtype fp32` for **v2** checkpoints, which
+still need it.
+
 ## Memory
 
 Block length is the memory knob, and attention cost is quadratic in it. On a
@@ -242,6 +275,13 @@ Block length is the memory knob, and attention cost is quadratic in it. On a
 into swap for no measured accuracy gain. Single-pass decoding of a whole file
 with no blocks at all is fine to about 5 minutes and gets the process OOM-killed
 well before 10.
+
+**The checkpoint is restored to CPU and cast there before it moves to the
+device.** Restoring straight onto the device leaves a full fp32 copy of the
+weights in its allocator, and that dead copy sets the high-water mark for the
+whole run — which is why `--dtype fp16` used to buy nothing at all. Same
+transcripts, word timings included; on a 7-minute recording peak fell from
+6.12 to 4.06 GiB at fp32 and from 6.13 to 2.22 GiB at fp16.
 
 On Apple Silicon this memory does **not** appear in RSS — `ps` will show 0.0 GB
 while the process holds 11. Watch `sysctl -n vm.swapusage` instead, and do not
@@ -333,8 +373,9 @@ they fail differently, and no single number captures the difference.
 ## Requirements
 
 Python 3.10+ and ffmpeg. Memory depends on block length rather than on the
-length of the recording — at the 60 s default a 16 GB machine is comfortable
-(peak around 3 GB of swap on Apple Silicon at fp32); see **Memory** above.
+length of the recording — at the 60 s default and the fp16 default, peak device
+allocation stays between 2 and 3.5 GiB on everything measured here; see
+**Memory** above.
 CUDA and Apple MPS are used automatically when present; CPU works but is slow.
 Diarization is ONNX-only and always runs on CPU.
 
