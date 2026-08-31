@@ -71,6 +71,10 @@ Nothing downloads itself — pass a local file.
 Writes `recording.txt`, `.srt`, `.vtt` and `.json` (word-level timings) beside
 the input, or into `--out-dir`.
 
+Add `--review` and it also writes `recording.review.txt`, a list of every
+span the model was unsure about with timestamps — that is where the errors are,
+and it is the fastest way to check a transcript. See below.
+
 Two things are worth doing every time:
 
 **Pass `--speakers N`.** Letting the clustering threshold guess is unreliable —
@@ -97,7 +101,48 @@ the exception: they crash in fp16 and need `--dtype fp32`.
 | `--overlap` | `1.3` | block overlap in seconds (ignored in VAD mode) |
 | `--block-secs` | `35` | max block length in non-VAD mode |
 | `--out-dir` | beside input | where to write the four output files |
+| `--review` | off | also write `<name>.review.txt` — see below |
+| `--review-below` | `--min-confidence` | threshold for the review list |
 | `--boost-file` | none | domain term list — measured ineffective, kept documented |
+
+## Finding the errors: `--review`
+
+A WER number will not tell you what is wrong with a transcript, and reading
+4,000 words to find fifteen bad ones is not a workflow. The model already knows
+where it is unsure — the confidences are computed for the hallucination filter
+anyway — so `--review` writes them out:
+
+```bash
+python transcribe_kmynas.py recording.m4a --review
+```
+
+```
+# 45 spans the model was unsure about, out of 757 words. Read these first.
+[03:13] 0.875  … rašytų apie mane knygą [hčikėt] galit ne ne tik …
+[03:32] 0.883 dropped  … gi visi žino, kas [žvrž] tą krepšinių pasaulį, kas …
+[06:14] 0.900  … kaip ir nesiruošiau klausimų [Vlū] pašnekovams, taip ir ten …
+[03:42] 0.951 dropped  … panašiai.“ Žlgai mane kankino [žl.] Net ir vieną autorę …
+```
+
+Runs of adjacent uncertain words are one entry, because a garbled phrase is one
+thing to check rather than four. Words the filter *removed* appear too, marked
+`dropped`, so a silent deletion can be audited instead of taken on trust. The
+timestamp is there so you can go to the audio.
+
+This works because the separation is real: every error found by reading two
+transcripts end to end scored below 0.98 — `hčikėt` 0.875, `šlį` 0.866,
+`Konfort` 0.804 — while the text around them sat at 0.99 and above. Ordinary
+words do appear in the list, so triage worst-first:
+
+```bash
+sort -k2 -n recording.review.txt | head -30
+```
+
+**It cannot find a confident mistake**, and that limit is worth knowing. In one
+recording the same surname came out two different ways ninety seconds apart;
+the first spelling scored 0.984 and never appears in the list, so only reading
+the transcript catches it. A plain wrong word inside fluent speech scored
+0.993. This narrows a read — it does not replace one.
 
 ## The loanword lexicon
 
@@ -351,6 +396,7 @@ test.
 | `lexicon.tsv` | loanword spelling table |
 | `lexicon_check.py` | replay a lexicon over text and print every rewrite it would make |
 | `eval_kmynas.py` | compare two checkpoints on the same audio |
+| `<name>.review.txt` | written by `--review`: where to look in a transcript |
 | `docs/lexicon.md` | the full lexicon guide |
 | `chunk_longform.py` | pause scoring and cut-point selection |
 | `transcribe_file.py` | audio loading, diarization, speaker smoothing, turn assembly and the `.txt`/`.srt`/`.vtt`/`.json` writers |
