@@ -51,7 +51,7 @@ huggingface-cli download kristijonas/kmynas-parakeet-lt-v3 kmynas-parakeet-lt-v3
 |---|---|
 | [**v3**](https://huggingface.co/kristijonas/kmynas-parakeet-lt-v3) | current |
 | [v2](https://huggingface.co/kristijonas/kmynas-parakeet-lt-v2) | **crashes in fp16** — run it with `--dtype fp32` |
-| [v3 mid-run](https://huggingface.co/kristijonas/kmynas-parakeet-lt-v3-checkpoints) | steps 5,000 / 12,552 / 15,104, for checkpoint comparisons |
+| [v3 mid-run](https://huggingface.co/kristijonas/kmynas-parakeet-lt-v3-checkpoints) | steps 5,000 / 12,552 / 15,104, for checkpoint comparisons — **private**, ask for access |
 
 Point the pipeline at any `.nemo` Parakeet checkpoint with `--model`, or set
 `$KMYNAS_MODEL` once:
