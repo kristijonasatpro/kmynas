@@ -331,9 +331,11 @@ they fail differently, and no single number captures the difference.
 
 ## Requirements
 
-Python 3.10+, ffmpeg, and about 4 GB of RAM for a 60-second block at fp16
-(double that at fp32). CUDA and Apple MPS are used automatically when present;
-CPU works but is slow. Diarization is ONNX-only and always runs on CPU.
+Python 3.10+ and ffmpeg. Memory depends on block length rather than on the
+length of the recording — at the 60 s default a 16 GB machine is comfortable
+(peak around 3 GB of swap on Apple Silicon at fp32); see **Memory** above.
+CUDA and Apple MPS are used automatically when present; CPU works but is slow.
+Diarization is ONNX-only and always runs on CPU.
 
 ## Licence
 
