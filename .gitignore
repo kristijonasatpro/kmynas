@@ -1,0 +1,22 @@
+__pycache__/
+*.pyc
+.venv/
+.venv-nemo/
+.DS_Store
+
+# model checkpoints — GB-scale, and some are private
+*.nemo
+
+# diarization models, downloaded on first use
+diar-models/
+
+# audio and its outputs: recordings are private by default
+*.wav
+*.m4a
+*.mp3
+*.mp4
+*.mov
+*.srt
+*.vtt
+audio/
+transcripts/

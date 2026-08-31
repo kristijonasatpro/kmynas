@@ -1,0 +1,26 @@
+# --- the pipeline ---------------------------------------------------------
+# NeMo is a large install and pins versions that conflict with the Whisper
+# stack in the paprika repo. Keep it in its own virtualenv.
+nemo_toolkit[asr]>=2.0
+omegaconf>=2.3
+torch>=2.4
+numpy>=1.24
+soundfile>=0.12
+
+# Block placement. 462K parameters, CPU-only, ~237x real time — the blocks it
+# finds are the single largest accuracy win in this pipeline, so it is not
+# optional in practice.
+silero-vad>=5.1
+
+# --- speaker labels (optional) --------------------------------------------
+# ONNX, CPU. Without it the transcript is written without speaker labels;
+# nothing else changes. Models (~57 MB) download on first use.
+sherpa-onnx>=1.10
+
+# --- only for --resample of odd sample rates ------------------------------
+librosa>=0.10
+
+# ffmpeg is required but is NOT a pip package:
+#   macOS         brew install ffmpeg
+#   Debian/Ubuntu apt install ffmpeg
+#   Windows       winget install Gyan.FFmpeg
