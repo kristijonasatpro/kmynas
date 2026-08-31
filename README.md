@@ -44,8 +44,9 @@ Budget 5–10 minutes; NeMo is a large install.
 
 | checkpoint | where | notes |
 |---|---|---|
-| **v3** | `kristijonas/kmynas-parakeet-lt-v3` | current; **private** — you need to be granted access |
+| **v3** | [`kristijonas/kmynas-parakeet-lt-v3`](https://huggingface.co/kristijonas/kmynas-parakeet-lt-v3) | current; public. fp16 is safe — the recording that killed v2 in fp16 decodes clean here |
 | v2 | [`kristijonas/kmynas-parakeet-lt-v2`](https://huggingface.co/kristijonas/kmynas-parakeet-lt-v2) | public; **crashes in fp16**, run it with `--dtype fp32` |
+| v3 mid-run | [`…-v3-checkpoints`](https://huggingface.co/kristijonas/kmynas-parakeet-lt-v3-checkpoints) | steps 5,000 / 12,552 / 15,104, for checkpoint comparisons |
 
 Point the pipeline at any `.nemo` Parakeet checkpoint with `--model`, or set
 `$KMYNAS_MODEL` once:
